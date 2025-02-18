@@ -1,49 +1,64 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from typing import Annotated
+from fastapi import Depends, FastAPI
+from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 
-class Todo(BaseModel):
-    id: int | None = None
+class Todo(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     description: str
 
+
+sqlite_file_name = "todo_app.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+# Setting "echo" to "True" prints all the SQL statements it executes (remove in production) 
+engine = create_engine(sqlite_url, echo=True)
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+SessionDep = Annotated[Session, Depends(get_session)]
 
 app = FastAPI()
 
 
-todosArray = []
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
 
 
-@app.get("/todos")
-async def root():
-    return todosArray
+@app.get("/todos/")
+async def read_todos(session: SessionDep) -> list[Todo]:
+    todos = session.exec(select(Todo)).all()
+    return todos
 
 
 @app.post("/todos/")
-async def create_todo(todo: Todo):
-    if todo.id is None:
-        todo.id = len(todosArray)
-
-    todosArray.append(todo)
-    
+async def create_todo(todo: Todo, session: SessionDep) -> Todo:
+    session.add(todo)
+    session.commit()
+    session.refresh(todo)
     return todo
 
 
 @app.put("/todos/{todo_id}")
-async def update_todo(todo_id: int, todo: Todo):
-    for todoItem in todosArray:
-        if todoItem.id == todo_id:
-            todoItem.description = todo.description
-            return {"message": "Todo updated", "id": todo_id}
-
-    return {"message": "Todo not found", "id": todo_id}
+async def update_todo(todo_id: int, newTodo: Todo, session: SessionDep) -> Todo:
+    todo = session.get(Todo, todo_id)
+    todo.description = newTodo.description
+    session.add(todo)
+    session.commit()
+    session.refresh(todo)
+    return todo
 
 
 @app.delete("/todos/{todo_id}")
-async def delete_todo(todo_id: int):
-    del todosArray[todo_id]
-    
-    for i in range(len(todosArray)):
-        todoItem = todosArray[i]
-        todoItem.id = i
-
-    return {"message": "Todo successfully deleted"}
+async def delete_todo(todo_id: int, session: SessionDep):
+    todo = session.get(Todo, todo_id)
+    session.delete(todo)
+    session.commit()
+    return {"Todo deleted successfully": True}
