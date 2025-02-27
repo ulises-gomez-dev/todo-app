@@ -1,6 +1,7 @@
 from typing import Annotated
 from fastapi import Depends, FastAPI
 from sqlmodel import Field, Session, SQLModel, create_engine, select
+from fastapi.middleware.cors import CORSMiddleware
 
 
 class Todo(SQLModel, table=True):
@@ -26,6 +27,20 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 app = FastAPI()
 
+# Allow any localhost port (e.g., 5174, 3000, 8000, etc.)
+origins = [
+    "http://localhost",
+    "http://127.0.0.1"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[f"{origin}:{port}" for origin in origins for port in range(5000, 6000)],  # Allow ports 5000-5999
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
 
 @app.on_event("startup")
 def on_startup():
@@ -34,22 +49,44 @@ def on_startup():
 
 @app.get("/todos/")
 async def read_todos(session: SessionDep) -> list[Todo]:
+    """
+    Returns a list of Todo objects to the client.
+
+    @param  session  a session dependency for get request 
+    @return          a list of Todo objects        
+    """
     todos = session.exec(select(Todo)).all()
     return todos
 
 
 @app.post("/todos/")
 async def create_todo(todo: Todo, session: SessionDep) -> Todo:
+    """
+    Adds a new todo to the database.  
+
+    @param todo     a Todo object
+    @param session  a session dependency for our post request 
+    @return         a Todo object
+    """
     session.add(todo)
     session.commit()
     session.refresh(todo)
+
     return todo
 
 
 @app.put("/todos/{todo_id}")
 async def update_todo(todo_id: int, newTodo: Todo, session: SessionDep) -> Todo:
+    """
+    Modifies the description of a pre-existing todo object stored in the database.  
+
+    @param todo_id
+    @param newTodo
+    @param session
+    @return 
+    """
     todo = session.get(Todo, todo_id)
-    todo.description = newTodo.description
+    todo.text = newTodo.text
     session.add(todo)
     session.commit()
     session.refresh(todo)
@@ -58,6 +95,13 @@ async def update_todo(todo_id: int, newTodo: Todo, session: SessionDep) -> Todo:
 
 @app.delete("/todos/{todo_id}")
 async def delete_todo(todo_id: int, session: SessionDep):
+    """
+    Deletes a todo object from the database.  
+
+    @param todo_id
+    @param session
+    @return 
+    """
     todo = session.get(Todo, todo_id)
     session.delete(todo)
     session.commit()
