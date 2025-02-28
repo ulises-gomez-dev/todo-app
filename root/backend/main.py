@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 class Todo(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    description: str
+    text: str
+    completed: bool | None = False
 
 
 sqlite_file_name = "todo_app.db"
