@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2 } from "lucide-react"
+import { fetchTodos } from "./services/api"
 
 interface Todo {
   id: number;
@@ -12,35 +13,37 @@ interface Todo {
   completed: boolean;
 }
 
-const fetchData = async () => {
-    try {
-        const response = await fetch("http://127.0.0.1:8000/todos/", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json"
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error("Network response was not ok");
-        }
-
-        const data = await response.json();
-        console.log(data);
-    } catch (error) {
-        console.error("Error fetching data:", error);
-    }
-};
-
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [newTodo, setNewTodo] = useState("")
 
   useEffect(() => {
-    fetchData();
+    const getTodos = async () => {
+      try {
+        const data = await fetchTodos("http://127.0.0.1:8000/todos/");
+        setTodos(data);
+      }
+      catch (error) {
+        console.log(error);
+      }
+    }
+
+    getTodos();
   }, []);
 
-  const addTodo = () => {
+  const addTodo = async () => {
+    const url = "http://127.0.0.1:8000/todos/"
+    const body = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: newTodo })
+    }
+
+    const response = await fetch(url, body);
+    console.log(response.status)
+
     if (newTodo.trim() !== "") {
       setTodos([...todos, { id: Date.now(), text: newTodo, completed: false }])
       setNewTodo("")
@@ -51,7 +54,13 @@ export default function TodoList() {
     setTodos(todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)))
   }
 
-  const deleteTodo = (id: number) => {
+  const deleteTodo = async (id: number) => {
+    const url = `http://127.0.0.1:8000/todos/${id}`
+    const body = {method: "DELETE"}
+
+    const response = await fetch(url, body);
+    console.log(response.status)
+
     setTodos(todos.filter((todo) => todo.id !== id))
   }
 
