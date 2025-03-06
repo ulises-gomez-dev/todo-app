@@ -88,6 +88,7 @@ async def update_todo(todo_id: int, newTodo: Todo, session: SessionDep) -> Todo:
     """
     todo = session.get(Todo, todo_id)
     todo.text = newTodo.text
+    todo.completed = newTodo.completed
     session.add(todo)
     session.commit()
     session.refresh(todo)
